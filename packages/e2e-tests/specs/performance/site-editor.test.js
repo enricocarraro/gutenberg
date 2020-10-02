@@ -51,7 +51,12 @@ describe( 'Site Editor Performance', () => {
 		// Measuring loading time
 		while ( i-- ) {
 			const startTime = new Date();
-			await page.reload();
+			await visitAdminPage(
+				'admin.php',
+				addQueryArgs( '', {
+					page: 'gutenberg-edit-site',
+				} ).slice( 1 )
+			);
 			await page.waitForSelector(
 				'.edit-site-visual-editor[data-loaded="true"]'
 			);
