@@ -43,23 +43,21 @@ const FocusManaged = withConstrainedTabbing(
 const SLOT_NAME = 'Popover';
 
 function offsetIframe( rect, ownerDocument ) {
-	if ( ownerDocument !== document ) {
-		const iframe = Array.from( document.querySelectorAll( 'iframe' ) ).find(
-			( element ) => {
-				return element.contentDocument === ownerDocument;
-			}
-		);
-		const iframeRect = iframe.getBoundingClientRect();
+	const { defaultView } = ownerDocument;
+	const { frameElement } = defaultView;
 
-		rect = new window.DOMRect(
-			rect.left + iframeRect.left,
-			rect.top + iframeRect.top,
-			rect.width,
-			rect.height
-		);
+	if ( ! frameElement ) {
+		return rect;
 	}
 
-	return rect;
+	const iframeRect = frameElement.getBoundingClientRect();
+
+	return new defaultView.DOMRect(
+		rect.left + iframeRect.left,
+		rect.top + iframeRect.top,
+		rect.width,
+		rect.height
+	);
 }
 
 function computeAnchorRect(
@@ -271,6 +269,22 @@ function setClass( element, name, toggle ) {
 	}
 }
 
+function getAnchorDocument( anchor ) {
+	if ( ! anchor ) {
+		return;
+	}
+
+	if ( anchor.endContainer ) {
+		return anchor.endContainer.ownerDocument;
+	}
+
+	if ( anchor.top ) {
+		return anchor.top.ownerDocument;
+	}
+
+	return anchor.ownerDocument;
+}
+
 const Popover = ( {
 	headerTitle,
 	onClose,
@@ -433,6 +447,9 @@ const Popover = ( {
 
 		refresh();
 
+		const { ownerDocument } = containerRef.current;
+		const { defaultView } = ownerDocument;
+
 		/*
 		 * There are sometimes we need to reposition or resize the popover that
 		 * are not handled by the resize/scroll window events (i.e. CSS changes
@@ -440,45 +457,58 @@ const Popover = ( {
 		 *
 		 * For these situations, we refresh the popover every 0.5s
 		 */
-		const intervalHandle = window.setInterval( refresh, 500 );
+		const intervalHandle = defaultView.setInterval( refresh, 500 );
 
 		let rafId;
 
 		const refreshOnAnimationFrame = () => {
-			window.cancelAnimationFrame( rafId );
-			rafId = window.requestAnimationFrame( refresh );
+			defaultView.cancelAnimationFrame( rafId );
+			rafId = defaultView.requestAnimationFrame( refresh );
 		};
 
 		// Sometimes a click trigger a layout change that affects the popover
 		// position. This is an opportunity to immediately refresh rather than
 		// at the interval.
-		window.addEventListener( 'click', refreshOnAnimationFrame );
-		window.addEventListener( 'resize', refresh );
-		window.addEventListener( 'scroll', refresh, true );
+		defaultView.addEventListener( 'click', refreshOnAnimationFrame );
+		defaultView.addEventListener( 'resize', refresh );
+		defaultView.addEventListener( 'scroll', refresh, true );
 
-		Array.from( document.querySelectorAll( 'iframe' ) ).forEach(
-			( element ) => {
-				element.contentWindow.addEventListener(
+		const anchorDocument = getAnchorDocument( anchorRef );
+
+		if ( anchorDocument && anchorDocument !== ownerDocument ) {
+			anchorDocument.defaultView.addEventListener( 'resize', refresh );
+			anchorDocument.defaultView.addEventListener(
+				'scroll',
+				refresh,
+				true
+			);
+		}
+
+		let observer;
+
+		if ( __unstableObserveElement ) {
+			observer = new defaultView.MutationObserver( refresh );
+			observer.observe( __unstableObserveElement, { attributes: true } );
+		}
+
+		return () => {
+			defaultView.clearInterval( intervalHandle );
+			defaultView.removeEventListener( 'resize', refresh );
+			defaultView.removeEventListener( 'scroll', refresh, true );
+			defaultView.removeEventListener( 'click', refreshOnAnimationFrame );
+			defaultView.cancelAnimationFrame( rafId );
+
+			if ( anchorDocument && anchorDocument !== ownerDocument ) {
+				anchorDocument.defaultView.removeEventListener(
+					'resize',
+					refresh
+				);
+				anchorDocument.defaultView.removeEventListener(
 					'scroll',
 					refresh,
 					true
 				);
 			}
-		);
-
-		let observer;
-
-		if ( __unstableObserveElement ) {
-			observer = new window.MutationObserver( refresh );
-			observer.observe( __unstableObserveElement, { attributes: true } );
-		}
-
-		return () => {
-			window.clearInterval( intervalHandle );
-			window.removeEventListener( 'resize', refresh );
-			window.removeEventListener( 'scroll', refresh, true );
-			window.removeEventListener( 'click', refreshOnAnimationFrame );
-			window.cancelAnimationFrame( rafId );
 
 			if ( observer ) {
 				observer.disconnect();

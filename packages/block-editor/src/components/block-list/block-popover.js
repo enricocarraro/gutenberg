@@ -13,6 +13,7 @@ import { Popover } from '@wordpress/components';
 import { useSelect } from '@wordpress/data';
 import { useShortcut } from '@wordpress/keyboard-shortcuts';
 import { useViewportMatch } from '@wordpress/compose';
+import { getScrollContainer } from '@wordpress/dom';
 
 /**
  * Internal dependencies
@@ -145,7 +146,9 @@ function BlockPopover( {
 		: 'top right left';
 	const stickyEl = showEmptyBlockSideInserter
 		? undefined
-		: ownerDocument.defaultView.frameElement;
+		: ownerDocument.defaultView.frameElement ||
+		  getScrollContainer( anchorRef ) ||
+		  ownerDocument.body;
 
 	return (
 		<Popover
