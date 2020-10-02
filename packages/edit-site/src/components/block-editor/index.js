@@ -85,6 +85,7 @@ export const IFrame = ( {
 			ref={ setContentRef }
 			title={ __( 'Editor content' ) }
 			name="editor-content"
+			data-loaded={ !! contentRef }
 		>
 			<useKeyboardShortcut.WindowContext.Provider value={ win }>
 				{ doc && createPortal( children, doc.body ) }
